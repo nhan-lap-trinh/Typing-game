@@ -1,0 +1,898 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>Vệ Binh Lõi Năng Lượng — Game Gõ Chữ Tiếng Việt</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg-void:#05070f;
+    --bg-panel:#0d1226;
+    --bg-panel-2:#131a36;
+    --cyan:#4cc9f0;
+    --cyan-dim:#2a5a73;
+    --magenta:#ff3d6e;
+    --amber:#ffb238;
+    --text-main:#eaf0ff;
+    --text-muted:#7c88ad;
+    --border-soft:rgba(124,136,173,0.25);
+  }
+
+  *{ box-sizing:border-box; }
+
+  html,body{
+    margin:0; padding:0; width:100%; height:100%;
+    background:var(--bg-void);
+    color:var(--text-main);
+    font-family:'Inter',sans-serif;
+    overflow:hidden;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  #app{
+    position:relative;
+    width:100vw; height:100vh;
+    background:
+      radial-gradient(ellipse at 50% 35%, rgba(76,201,240,0.08), transparent 60%),
+      radial-gradient(ellipse at 20% 80%, rgba(255,61,110,0.06), transparent 55%),
+      var(--bg-void);
+  }
+
+  /* ---------- Starfield ---------- */
+  #starfield{ position:absolute; inset:0; overflow:hidden; z-index:0; }
+  .star{
+    position:absolute; border-radius:50%;
+    background:var(--text-main);
+    opacity:0.5;
+    animation:twinkle linear infinite;
+  }
+  @keyframes twinkle{
+    0%,100%{ opacity:0.15; }
+    50%{ opacity:0.85; }
+  }
+
+  /* ---------- HUD ---------- */
+  #hud{
+    position:absolute; top:0; left:0; right:0;
+    display:flex; align-items:flex-start; justify-content:space-between;
+    padding:18px clamp(16px,4vw,48px);
+    z-index:5;
+    pointer-events:none;
+  }
+  .hud-block{
+    display:flex; flex-direction:column; gap:4px;
+  }
+  .hud-label{
+    font-size:11px; letter-spacing:0.04em; color:var(--text-muted);
+    font-weight:500;
+  }
+  .hud-value{
+    font-family:'Orbitron',sans-serif; font-weight:700;
+    font-size:clamp(18px,2.4vw,26px);
+    color:var(--text-main);
+    line-height:1;
+  }
+  #score-value{ color:var(--cyan); }
+  #combo-value{ color:var(--amber); }
+  .hearts{ display:flex; gap:6px; margin-top:2px; }
+  .heart{
+    width:16px; height:16px;
+    background:var(--magenta);
+    clip-path:path('M8 14.5C8 14.5 1 9.8 1 5.2C1 2.8 2.9 1 5.2 1C6.5 1 7.6 1.6 8 2.6C8.4 1.6 9.5 1 10.8 1C13.1 1 15 2.8 15 5.2C15 9.8 8 14.5 8 14.5Z');
+    transition:background 0.2s, opacity 0.2s, transform 0.2s;
+  }
+  .heart.empty{ background:transparent; border:1.5px solid var(--border-soft); clip-path:none; border-radius:50%; opacity:0.5; }
+
+  .hud-right{ text-align:right; align-items:flex-end; }
+
+  #wave-banner{
+    position:absolute; top:38%; left:50%;
+    transform:translate(-50%,-50%) scale(0.8);
+    font-family:'Orbitron',sans-serif; font-weight:900;
+    font-size:clamp(28px,6vw,56px);
+    color:var(--cyan);
+    text-shadow:0 0 24px rgba(76,201,240,0.6);
+    opacity:0; pointer-events:none; z-index:6;
+    letter-spacing:0.02em;
+  }
+  #wave-banner.show{
+    animation:waveIn 1.6s ease forwards;
+  }
+  @keyframes waveIn{
+    0%{ opacity:0; transform:translate(-50%,-50%) scale(0.7); }
+    15%{ opacity:1; transform:translate(-50%,-50%) scale(1); }
+    75%{ opacity:1; transform:translate(-50%,-50%) scale(1); }
+    100%{ opacity:0; transform:translate(-50%,-50%) scale(1.05); }
+  }
+
+  /* ---------- Playfield ---------- */
+  #playfield{
+    position:absolute; inset:0; z-index:2;
+  }
+
+  #core{
+    position:absolute; top:50%; left:50%;
+    width:96px; height:96px;
+    transform:translate(-50%,-50%);
+    z-index:3;
+  }
+  #core .core-glow{
+    position:absolute; inset:-40px;
+    border-radius:50%;
+    background:radial-gradient(circle, rgba(76,201,240,0.35), transparent 70%);
+    animation:corePulse 2.6s ease-in-out infinite;
+  }
+  #core .core-ring{
+    position:absolute; inset:0; border-radius:50%;
+    border:2px solid var(--cyan);
+    box-shadow:0 0 18px rgba(76,201,240,0.7), inset 0 0 18px rgba(76,201,240,0.4);
+    animation:coreSpin 12s linear infinite;
+  }
+  #core .core-ring::before{
+    content:''; position:absolute; inset:14px; border-radius:50%;
+    border:1px dashed rgba(76,201,240,0.5);
+  }
+  #core .core-dot{
+    position:absolute; inset:36px; border-radius:50%;
+    background:var(--cyan);
+    box-shadow:0 0 24px 6px rgba(76,201,240,0.85);
+  }
+  @keyframes corePulse{
+    0%,100%{ opacity:0.55; transform:scale(1); }
+    50%{ opacity:0.9; transform:scale(1.12); }
+  }
+  @keyframes coreSpin{
+    from{ transform:rotate(0deg); }
+    to{ transform:rotate(360deg); }
+  }
+  #core.hit .core-ring{ border-color:var(--magenta); box-shadow:0 0 26px rgba(255,61,110,0.9); }
+  #core.hit .core-dot{ background:var(--magenta); box-shadow:0 0 26px 8px rgba(255,61,110,0.9); }
+
+  .enemy{
+    position:absolute; top:0; left:0;
+    display:flex; flex-direction:column; align-items:center;
+    gap:6px;
+    transform:translate(-50%,-50%);
+    z-index:4;
+    will-change:transform;
+  }
+  .enemy .bot{
+    width:26px; height:26px;
+    border-radius:6px;
+    background:var(--bg-panel-2);
+    border:1.5px solid var(--magenta);
+    box-shadow:0 0 10px rgba(255,61,110,0.55);
+    position:relative;
+  }
+  .enemy .bot::before, .enemy .bot::after{
+    content:''; position:absolute; width:4px; height:4px; border-radius:50%;
+    background:var(--magenta); top:9px;
+  }
+  .enemy .bot::before{ left:5px; }
+  .enemy .bot::after{ right:5px; }
+  .enemy .word{
+    font-family:'Inter',sans-serif; font-weight:600;
+    font-size:15px; white-space:nowrap;
+    background:rgba(5,7,15,0.72);
+    padding:3px 9px; border-radius:5px;
+    border:1px solid var(--border-soft);
+    letter-spacing:0.01em;
+  }
+  .enemy .word .matched{ color:var(--cyan); }
+  .enemy .word .pending{ color:var(--text-main); }
+  .enemy.locked .word{ border-color:var(--cyan); box-shadow:0 0 10px rgba(76,201,240,0.35); }
+  .enemy.locked .bot{ border-color:var(--cyan); box-shadow:0 0 12px rgba(76,201,240,0.6); }
+
+  .enemy.exploding{ animation:explode 0.28s ease-out forwards; }
+  @keyframes explode{
+    0%{ opacity:1; transform:translate(-50%,-50%) scale(1); }
+    100%{ opacity:0; transform:translate(-50%,-50%) scale(1.8); }
+  }
+  .enemy.impacting{ animation:impact 0.32s ease-in forwards; }
+  @keyframes impact{
+    0%{ opacity:1; transform:translate(-50%,-50%) scale(1); }
+    100%{ opacity:0; transform:translate(-50%,-50%) scale(0.3); }
+  }
+
+  .laser{
+    position:absolute; top:0; left:0;
+    height:2px; transform-origin:0 50%;
+    background:linear-gradient(90deg, rgba(76,201,240,0.95), rgba(76,201,240,0));
+    box-shadow:0 0 8px rgba(76,201,240,0.9);
+    z-index:3;
+    animation:laserFade 0.22s ease-out forwards;
+  }
+  @keyframes laserFade{
+    0%{ opacity:1; }
+    100%{ opacity:0; }
+  }
+
+  /* ---------- Typed indicator ---------- */
+  #typed-wrap{
+    position:absolute; bottom:clamp(20px,5vh,48px); left:50%;
+    transform:translateX(-50%);
+    z-index:6;
+    display:flex; flex-direction:column; align-items:center; gap:8px;
+  }
+  #typed-indicator{
+    min-width:180px; min-height:40px;
+    padding:8px 20px;
+    background:var(--bg-panel);
+    border:1px solid var(--border-soft);
+    border-radius:8px;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'Orbitron',sans-serif; font-size:18px; letter-spacing:0.03em;
+    color:var(--cyan);
+    transition:border-color 0.12s, box-shadow 0.12s;
+  }
+  #typed-indicator.error{ border-color:var(--magenta); box-shadow:0 0 12px rgba(255,61,110,0.5); }
+  #typed-indicator .cursor{
+    display:inline-block; width:2px; height:18px; background:var(--cyan);
+    margin-left:2px; animation:blink 1s step-end infinite;
+  }
+  @keyframes blink{ 50%{ opacity:0; } }
+  #typed-hint{ font-size:12px; color:var(--text-muted); }
+
+  #hidden-input{
+    position:absolute; opacity:0; pointer-events:none;
+    width:1px; height:1px;
+  }
+
+  /* ---------- Overlays ---------- */
+  .overlay{
+    position:absolute; inset:0; z-index:10;
+    display:flex; align-items:center; justify-content:center;
+    background:rgba(5,7,15,0.88);
+    backdrop-filter:blur(2px);
+  }
+  .overlay.hidden{ display:none; }
+  .panel{
+    width:min(520px, 88vw);
+    padding:clamp(28px,5vw,44px);
+    background:var(--bg-panel);
+    border:1px solid var(--border-soft);
+    border-radius:14px;
+    text-align:center;
+    box-shadow:0 20px 60px rgba(0,0,0,0.5);
+  }
+  .panel h1{
+    font-family:'Orbitron',sans-serif; font-weight:900;
+    font-size:clamp(24px,4vw,32px);
+    margin:0 0 14px;
+    color:var(--text-main);
+    line-height:1.25;
+  }
+  .panel h1 span{ color:var(--cyan); }
+  .panel p{
+    color:var(--text-muted); font-size:14.5px; line-height:1.65;
+    margin:0 0 10px;
+  }
+  .panel .kbd{
+    display:inline-block; padding:1px 7px; border-radius:4px;
+    background:var(--bg-panel-2); border:1px solid var(--border-soft);
+    font-family:'Orbitron',sans-serif; font-size:12px; color:var(--cyan);
+  }
+  .btn{
+    margin-top:18px;
+    font-family:'Inter',sans-serif; font-weight:600; font-size:15px;
+    color:var(--bg-void);
+    background:var(--cyan);
+    border:none; border-radius:8px;
+    padding:13px 30px;
+    cursor:pointer;
+    transition:transform 0.12s, box-shadow 0.12s, background 0.12s;
+    box-shadow:0 0 0 rgba(76,201,240,0);
+  }
+  .btn:hover{ background:#6fd7f7; box-shadow:0 6px 24px rgba(76,201,240,0.35); transform:translateY(-1px); }
+  .btn:active{ transform:translateY(0); }
+
+  .stat-grid{
+    display:grid; grid-template-columns:1fr 1fr; gap:12px 20px;
+    margin:22px 0 4px;
+    text-align:left;
+  }
+  .stat{
+    background:var(--bg-panel-2); border:1px solid var(--border-soft);
+    border-radius:8px; padding:10px 14px;
+  }
+  .stat .stat-label{ font-size:11px; color:var(--text-muted); margin-bottom:4px; }
+  .stat .stat-value{ font-family:'Orbitron',sans-serif; font-weight:700; font-size:20px; color:var(--cyan); }
+
+  @media (max-width:520px){
+    .stat-grid{ grid-template-columns:1fr 1fr; }
+    #hud{ padding:14px 14px; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="starfield"></div>
+
+  <div id="hud">
+    <div class="hud-block">
+      <span class="hud-label">Điểm</span>
+      <span class="hud-value" id="score-value">0</span>
+    </div>
+    <div class="hud-block">
+      <span class="hud-label">Combo</span>
+      <span class="hud-value" id="combo-value">x0</span>
+    </div>
+    <div class="hud-block hud-right">
+      <span class="hud-label">Sóng <span id="wave-value">1</span></span>
+      <div class="hearts" id="hearts"></div>
+    </div>
+  </div>
+
+  <div id="wave-banner"></div>
+
+  <div id="playfield">
+    <div id="core">
+      <div class="core-glow"></div>
+      <div class="core-ring"></div>
+      <div class="core-dot"></div>
+    </div>
+  </div>
+
+  <div id="typed-wrap">
+    <div id="typed-indicator"><span id="typed-text"></span><span class="cursor"></span></div>
+    <div id="typed-hint">Gõ để khoá mục tiêu &amp; tiêu diệt robot trước khi chúng chạm lõi</div>
+  </div>
+
+  <input id="hidden-input" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" />
+
+  <div class="overlay" id="start-overlay">
+    <div class="panel">
+      <h1>Vệ Binh <span>Lõi Năng Lượng</span></h1>
+      <p>Đàn robot đang bay vào phá lõi năng lượng ở trung tâm. Hãy gõ đúng từ tiếng Việt hiện trên mỗi robot để bắn hạ nó trước khi nó chạm lõi.</p>
+      <p>Gõ ký tự đầu của một từ bất kỳ để khoá mục tiêu, tiếp tục gõ hết từ để bắn. Gõ sai sẽ không được tính, cứ gõ lại ký tự đúng.</p>
+      <p>Lõi chịu được <span class="kbd">3</span> lần va chạm. Sóng robot sẽ nhanh và dày dần theo thời gian.</p>
+      <button class="btn" id="start-btn">Bắt đầu chơi</button>
+    </div>
+  </div>
+
+  <div class="overlay hidden" id="gameover-overlay">
+    <div class="panel">
+      <h1>Lõi Đã <span>Sụp Đổ</span></h1>
+      <p id="gameover-sub">Robot đã áp đảo hàng phòng thủ của bạn.</p>
+      <div class="stat-grid">
+        <div class="stat"><div class="stat-label">Điểm số</div><div class="stat-value" id="final-score">0</div></div>
+        <div class="stat"><div class="stat-label">Sóng đạt được</div><div class="stat-value" id="final-wave">1</div></div>
+        <div class="stat"><div class="stat-label">Tốc độ gõ</div><div class="stat-value" id="final-wpm">0 WPM</div></div>
+        <div class="stat"><div class="stat-label">Độ chính xác</div><div class="stat-value" id="final-acc">100%</div></div>
+      </div>
+      <button class="btn" id="restart-btn">Chơi lại</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* =========================================================
+     1. NGÂN HÀNG TỪ VỰNG TIẾNG VIỆT
+     Chia theo 3 mức độ dài để tăng độ khó dần theo số sóng (wave).
+  ========================================================= */
+  const WORDS_EASY = [
+    "nhà","cây","hoa","mèo","chó","gà","cá","mưa","nắng","gió","sao","mây",
+    "đỏ","xanh","vàng","tím","đen","vui","buồn","yêu","đẹp","xấu","to","nhỏ",
+    "cao","thấp","nhanh","chậm","nóng","lạnh","mới","cũ","xa","gần","dài","ngắn",
+    "nặng","nhẹ","sáng","tối","ngon","dở","giàu","khỏe","yếu","đúng","sai",
+    "rộng","hẹp","sạch","mạnh","mềm","cứng","ngọt","chua","cay","mặn","đắng",
+    "núi","sông","biển","trăng","hồng","nâu","trắng","gạo","muối","đường"
+  ];
+
+  const WORDS_MEDIUM = [
+    "học sinh","giáo viên","gia đình","quê hương","đất nước","mùa xuân",
+    "mùa thu","mùa đông","cầu vồng","thành phố","nông thôn","hoa hồng",
+    "hoa sen","cây xanh","ánh sáng","bóng tối","hạnh phúc","ước mơ",
+    "tương lai","quá khứ","tuổi thơ","kỷ niệm","thời gian","ngôi sao",
+    "mặt trăng","mặt trời","cơn mưa","cơn gió","con sóng","dòng sông",
+    "ngọn núi","con đường","bạn bè","chú chó","con mèo","con voi",
+    "con hổ","con gấu","con cua","con tôm","lá vàng","rừng núi",
+    "biển cả","chim sẻ","hoa mai","hoa đào","mùa hè","bầu trời"
+  ];
+
+  const WORDS_HARD = [
+    "trường học","máy tính","rô bốt","lập trình","khoa học","công nghệ",
+    "kỹ thuật","sáng tạo","thông minh","chăm chỉ","kiên nhẫn","dũng cảm",
+    "trung thực","khiêm tốn","thân thiện","nhiệt tình","năng động",
+    "tuyệt vời","xuất sắc","yêu thương","gương mẫu","cầu thủ bóng",
+    "vũ trụ bao la","ngôi trường cũ","cơn bão lớn","dòng thời gian"
+  ];
+
+  /* =========================================================
+     2. CẤU HÌNH TRÒ CHƠI
+  ========================================================= */
+  const CORE_HIT_RADIUS   = 62;    // px — khoảng cách tính là "chạm lõi"
+  const MAX_LIVES         = 3;
+  const BASE_SPAWN_MS     = 2200;  // thời gian giữa 2 lần sinh robot ở sóng 1
+  const MIN_SPAWN_MS      = 550;   // giới hạn dưới để game không sinh quá dày
+  const BASE_SPEED        = 42;    // px/giây ở sóng 1
+  const SPEED_PER_WAVE    = 7;     // mỗi sóng tăng tốc thêm bấy nhiêu
+  const WAVE_DURATION_MS  = 22000; // sau chừng này thì lên sóng tiếp theo
+
+  /* =========================================================
+     3. THAM CHIẾU DOM
+  ========================================================= */
+  const playfield      = document.getElementById('playfield');
+  const coreEl         = document.getElementById('core');
+  const heartsEl       = document.getElementById('hearts');
+  const scoreValueEl   = document.getElementById('score-value');
+  const comboValueEl   = document.getElementById('combo-value');
+  const waveValueEl    = document.getElementById('wave-value');
+  const waveBannerEl   = document.getElementById('wave-banner');
+  const typedTextEl    = document.getElementById('typed-text');
+  const typedIndicator = document.getElementById('typed-indicator');
+  const hiddenInput    = document.getElementById('hidden-input');
+  const startOverlay   = document.getElementById('start-overlay');
+  const startBtn       = document.getElementById('start-btn');
+  const gameoverOverlay= document.getElementById('gameover-overlay');
+  const restartBtn     = document.getElementById('restart-btn');
+  const finalScoreEl   = document.getElementById('final-score');
+  const finalWaveEl    = document.getElementById('final-wave');
+  const finalWpmEl     = document.getElementById('final-wpm');
+  const finalAccEl     = document.getElementById('final-acc');
+
+  /* =========================================================
+     4. TRẠNG THÁI TRÒ CHƠI
+     Toàn bộ trạng thái sống trong một object duy nhất để dễ reset
+     khi người chơi bấm "Chơi lại".
+  ========================================================= */
+  let game = null;
+  let enemyIdCounter = 0;
+  let spawnTimeoutId = null;
+  let waveIntervalId = null;
+  let rafId = null;
+  let lastFrameTime = 0;
+  let recentWords = []; // tránh lặp lại từ vừa xuất hiện
+
+  function createFreshState(){
+    return {
+      running:false,
+      score:0,
+      combo:0,
+      wave:1,
+      lives:MAX_LIVES,
+      enemies:[],           // danh sách robot đang bay
+      activeTargetId:null,  // id robot đang bị khoá để gõ
+      startTime:0,
+      correctChars:0,
+      errorChars:0,
+      wordsDestroyed:0
+    };
+  }
+
+  /* =========================================================
+     5. NỀN SAO (chỉ để trang trí, sinh 1 lần khi tải trang)
+  ========================================================= */
+  function buildStarfield(){
+    const field = document.getElementById('starfield');
+    const count = 90;
+    for(let i=0;i<count;i++){
+      const s = document.createElement('div');
+      s.className = 'star';
+      const size = Math.random()*2 + 0.6;
+      s.style.width = size+'px';
+      s.style.height = size+'px';
+      s.style.left = (Math.random()*100)+'%';
+      s.style.top = (Math.random()*100)+'%';
+      s.style.animationDuration = (2 + Math.random()*3)+'s';
+      s.style.animationDelay = (Math.random()*3)+'s';
+      field.appendChild(s);
+    }
+  }
+
+  /* =========================================================
+     6. CHỌN TỪ THEO SÓNG HIỆN TẠI
+     Sóng càng cao, xác suất rơi vào từ dài (khó) càng lớn.
+  ========================================================= */
+  function pickWord(wave){
+    let pool;
+    const r = Math.random();
+    if(wave <= 2){
+      pool = r < 0.8 ? WORDS_EASY : WORDS_MEDIUM;
+    } else if(wave <= 5){
+      if(r < 0.5) pool = WORDS_EASY;
+      else if(r < 0.9) pool = WORDS_MEDIUM;
+      else pool = WORDS_HARD;
+    } else {
+      if(r < 0.3) pool = WORDS_EASY;
+      else if(r < 0.7) pool = WORDS_MEDIUM;
+      else pool = WORDS_HARD;
+    }
+
+    // Lọc bỏ những từ đang hiển thị trên màn hình hoặc vừa dùng gần đây,
+    // để người chơi không bị rối vì hai robot mang cùng một từ.
+    const activeWords = game.enemies.map(e => e.word);
+    let candidates = pool.filter(w => !activeWords.includes(w) && !recentWords.includes(w));
+    if(candidates.length === 0) candidates = pool;
+
+    const word = candidates[Math.floor(Math.random()*candidates.length)];
+    recentWords.push(word);
+    if(recentWords.length > 12) recentWords.shift();
+    return word;
+  }
+
+  /* =========================================================
+     7. SINH ROBOT MỚI
+     Robot xuất hiện trên một vòng tròn quanh mép màn hình rồi bay
+     thẳng về tâm (nơi đặt lõi năng lượng).
+  ========================================================= */
+  function spawnEnemy(){
+    if(!game || !game.running) return;
+
+    const word = pickWord(game.wave);
+    const cx = window.innerWidth/2;
+    const cy = window.innerHeight/2;
+    const spawnRadius = Math.hypot(cx,cy) * 1.05 + 40;
+    const angle = Math.random() * Math.PI * 2;
+
+    const x = cx + Math.cos(angle) * spawnRadius;
+    const y = cy + Math.sin(angle) * spawnRadius;
+
+    const speed = BASE_SPEED + (game.wave-1)*SPEED_PER_WAVE + (Math.random()*10 - 5);
+
+    const el = document.createElement('div');
+    el.className = 'enemy';
+    el.innerHTML = '<div class="bot"></div><div class="word"><span class="matched"></span><span class="pending">'+escapeHtml(word)+'</span></div>';
+    playfield.appendChild(el);
+
+    const enemy = {
+      id: ++enemyIdCounter,
+      word: word,
+      el: el,
+      x: x, y: y,
+      speed: speed
+    };
+    game.enemies.push(enemy);
+    positionEnemy(enemy);
+  }
+
+  function escapeHtml(str){
+    const d = document.createElement('div');
+    d.textContent = str;
+    return d.innerHTML;
+  }
+
+  function scheduleNextSpawn(){
+    if(!game || !game.running) return;
+    const interval = Math.max(MIN_SPAWN_MS, BASE_SPAWN_MS - (game.wave-1)*140);
+    spawnTimeoutId = setTimeout(function(){
+      spawnEnemy();
+      scheduleNextSpawn();
+    }, interval);
+  }
+
+  /* =========================================================
+     8. VÒNG LẶP CHUYỂN ĐỘNG (requestAnimationFrame)
+  ========================================================= */
+  function positionEnemy(enemy){
+    enemy.el.style.transform = 'translate('+enemy.x+'px,'+enemy.y+'px) translate(-50%,-50%)';
+  }
+
+  function frame(now){
+    if(!game || !game.running) return;
+    const dt = Math.min(0.05, (now - lastFrameTime) / 1000); // giây, chặn trần để tránh nhảy khung hình khi tab bị ẩn
+    lastFrameTime = now;
+
+    const cx = window.innerWidth/2;
+    const cy = window.innerHeight/2;
+
+    // Duyệt ngược để có thể xoá phần tử khỏi mảng an toàn khi cần
+    for(let i = game.enemies.length - 1; i >= 0; i--){
+      const enemy = game.enemies[i];
+      const dx = cx - enemy.x;
+      const dy = cy - enemy.y;
+      const dist = Math.hypot(dx, dy);
+
+      if(dist <= CORE_HIT_RADIUS){
+        enemyHitsCore(enemy);
+        continue;
+      }
+
+      const step = enemy.speed * dt;
+      enemy.x += (dx/dist) * step;
+      enemy.y += (dy/dist) * step;
+      positionEnemy(enemy);
+    }
+
+    updateLiveWpm(now);
+    rafId = requestAnimationFrame(frame);
+  }
+
+  /* =========================================================
+     9. XỬ LÝ GÕ PHÍM
+     Dùng <input> thay vì bắt keydown thô để hỗ trợ đúng các bộ gõ
+     tiếng Việt (Telex/VNI) vốn ghép dấu ở tầng hệ điều hành/trình duyệt.
+  ========================================================= */
+  function findEnemyById(id){
+    return game.enemies.find(e => e.id === id);
+  }
+
+  function clearLockVisual(){
+    game.enemies.forEach(e => e.el.classList.remove('locked'));
+  }
+
+  function renderTypedBuffer(value, target){
+    if(target){
+      const matchedPart = target.slice(0, value.length);
+      const pendingPart = target.slice(value.length);
+      typedTextEl.innerHTML =
+        '<span style="color:var(--cyan)">'+escapeHtml(matchedPart)+'</span>' +
+        '<span style="color:var(--text-muted)">'+escapeHtml(pendingPart)+'</span>';
+    } else {
+      typedTextEl.textContent = value;
+    }
+  }
+
+  function updateEnemyWordDisplay(enemy, value){
+    const matched = enemy.word.slice(0, value.length);
+    const pending = enemy.word.slice(value.length);
+    const matchedSpan = enemy.el.querySelector('.matched');
+    const pendingSpan = enemy.el.querySelector('.pending');
+    matchedSpan.textContent = matched;
+    pendingSpan.textContent = pending;
+  }
+
+  function flashError(){
+    typedIndicator.classList.add('error');
+    setTimeout(()=> typedIndicator.classList.remove('error'), 150);
+  }
+
+  function onTypingInput(){
+    if(!game || !game.running) return;
+    let value = hiddenInput.value.normalize('NFC').toLowerCase();
+
+    if(value.length === 0){
+      renderTypedBuffer('', null);
+      return;
+    }
+
+    // Trường hợp 1: chưa khoá mục tiêu -> tìm robot phù hợp với chuỗi vừa gõ
+    if(game.activeTargetId === null){
+      const candidates = game.enemies.filter(e => e.word.toLowerCase().startsWith(value));
+      if(candidates.length === 0){
+        // Gõ sai ký tự đầu tiên -> huỷ ký tự vừa gõ, không tính lỗi nặng
+        hiddenInput.value = value.slice(0, -1);
+        game.errorChars++;
+        flashError();
+        return;
+      }
+      // Ưu tiên khoá robot đang gần lõi nhất (mối đe doạ lớn nhất)
+      candidates.sort((a,b)=>{
+        const da = Math.hypot(window.innerWidth/2-a.x, window.innerHeight/2-a.y);
+        const db = Math.hypot(window.innerWidth/2-b.x, window.innerHeight/2-b.y);
+        return da-db;
+      });
+      game.activeTargetId = candidates[0].id;
+      clearLockVisual();
+      candidates[0].el.classList.add('locked');
+    }
+
+    const target = findEnemyById(game.activeTargetId);
+    if(!target){
+      // Robot mục tiêu đã biến mất (bị né/huỷ) trong lúc gõ -> reset trạng thái
+      game.activeTargetId = null;
+      hiddenInput.value = '';
+      renderTypedBuffer('', null);
+      return;
+    }
+
+    const targetWord = target.word.toLowerCase();
+    if(!targetWord.startsWith(value)){
+      // Gõ sai giữa chừng -> huỷ ký tự sai, giữ nguyên phần đã đúng
+      hiddenInput.value = value.slice(0, -1);
+      game.errorChars++;
+      flashError();
+      return;
+    }
+
+    updateEnemyWordDisplay(target, value);
+    renderTypedBuffer(value, targetWord);
+
+    if(value.length === targetWord.length){
+      destroyEnemy(target);
+      hiddenInput.value = '';
+      renderTypedBuffer('', null);
+    }
+  }
+
+  /* =========================================================
+     10. TIÊU DIỆT / VA CHẠM ROBOT
+  ========================================================= */
+  function spawnLaser(fromX, fromY, toX, toY){
+    const laser = document.createElement('div');
+    laser.className = 'laser';
+    const dx = toX-fromX, dy = toY-fromY;
+    const length = Math.hypot(dx,dy);
+    const angle = Math.atan2(dy,dx) * 180/Math.PI;
+    laser.style.left = fromX+'px';
+    laser.style.top = fromY+'px';
+    laser.style.width = length+'px';
+    laser.style.transform = 'rotate('+angle+'deg)';
+    playfield.appendChild(laser);
+    setTimeout(()=> laser.remove(), 240);
+  }
+
+  function removeEnemyFromState(enemy){
+    game.enemies = game.enemies.filter(e => e.id !== enemy.id);
+    if(game.activeTargetId === enemy.id){
+      game.activeTargetId = null;
+    }
+  }
+
+  function destroyEnemy(enemy){
+    spawnLaser(window.innerWidth/2, window.innerHeight/2, enemy.x, enemy.y);
+    enemy.el.classList.add('exploding');
+    setTimeout(()=> enemy.el.remove(), 300);
+
+    game.combo++;
+    game.wordsDestroyed++;
+    game.correctChars += enemy.word.length;
+    const points = enemy.word.replace(/\s+/g,'').length * 10 + game.combo * 5;
+    game.score += points;
+
+    removeEnemyFromState(enemy);
+    updateHud();
+  }
+
+  function enemyHitsCore(enemy){
+    enemy.el.classList.add('impacting');
+    setTimeout(()=> enemy.el.remove(), 320);
+
+    removeEnemyFromState(enemy);
+    hiddenInput.value = '';
+    renderTypedBuffer('', null);
+
+    game.combo = 0;
+    game.lives--;
+    coreEl.classList.add('hit');
+    setTimeout(()=> coreEl.classList.remove('hit'), 260);
+
+    updateHud();
+
+    if(game.lives <= 0){
+      endGame();
+    }
+  }
+
+  /* =========================================================
+     11. HUD / THỐNG KÊ
+  ========================================================= */
+  function renderHearts(){
+    heartsEl.innerHTML = '';
+    for(let i=0;i<MAX_LIVES;i++){
+      const h = document.createElement('div');
+      h.className = 'heart' + (i < game.lives ? '' : ' empty');
+      heartsEl.appendChild(h);
+    }
+  }
+
+  function updateHud(){
+    scoreValueEl.textContent = game.score;
+    comboValueEl.textContent = 'x'+game.combo;
+    waveValueEl.textContent = game.wave;
+    renderHearts();
+  }
+
+  function updateLiveWpm(now){
+    // Không hiển thị số WPM trực tiếp trên HUD chính để giữ giao diện gọn,
+    // nhưng vẫn tính liên tục để có số liệu chính xác khi kết thúc ván.
+    game._lastNow = now;
+  }
+
+  function computeWpm(){
+    const elapsedMin = (performance.now() - game.startTime) / 60000;
+    if(elapsedMin <= 0) return 0;
+    return Math.round((game.correctChars/5) / elapsedMin);
+  }
+
+  function computeAccuracy(){
+    const total = game.correctChars + game.errorChars;
+    if(total === 0) return 100;
+    return Math.round((game.correctChars/total) * 100);
+  }
+
+  /* =========================================================
+     12. QUẢN LÝ SÓNG (WAVE)
+  ========================================================= */
+  function showWaveBanner(waveNumber){
+    waveBannerEl.textContent = 'SÓNG '+waveNumber;
+    waveBannerEl.classList.remove('show');
+    void waveBannerEl.offsetWidth; // ép trình duyệt reflow để animation chạy lại
+    waveBannerEl.classList.add('show');
+  }
+
+  function scheduleWaveProgress(){
+    waveIntervalId = setInterval(function(){
+      if(!game || !game.running) return;
+      game.wave++;
+      updateHud();
+      showWaveBanner(game.wave);
+    }, WAVE_DURATION_MS);
+  }
+
+  /* =========================================================
+     13. VÒNG ĐỜI TRÒ CHƠI: BẮT ĐẦU / KẾT THÚC / CHƠI LẠI
+  ========================================================= */
+  function clearPlayfieldEnemies(){
+    document.querySelectorAll('.enemy').forEach(el => el.remove());
+    document.querySelectorAll('.laser').forEach(el => el.remove());
+  }
+
+  function startGame(){
+    clearTimeout(spawnTimeoutId);
+    clearInterval(waveIntervalId);
+    cancelAnimationFrame(rafId);
+    clearPlayfieldEnemies();
+
+    game = createFreshState();
+    game.running = true;
+    game.startTime = performance.now();
+    recentWords = [];
+
+    startOverlay.classList.add('hidden');
+    gameoverOverlay.classList.add('hidden');
+
+    updateHud();
+    hiddenInput.value = '';
+    renderTypedBuffer('', null);
+    hiddenInput.focus();
+
+    showWaveBanner(1);
+    scheduleNextSpawn();
+    scheduleWaveProgress();
+    lastFrameTime = performance.now();
+    rafId = requestAnimationFrame(frame);
+  }
+
+  function endGame(){
+    game.running = false;
+    clearTimeout(spawnTimeoutId);
+    clearInterval(waveIntervalId);
+    cancelAnimationFrame(rafId);
+
+    finalScoreEl.textContent = game.score;
+    finalWaveEl.textContent = game.wave;
+    finalWpmEl.textContent = computeWpm()+' WPM';
+    finalAccEl.textContent = computeAccuracy()+'%';
+
+    gameoverOverlay.classList.remove('hidden');
+  }
+
+  /* =========================================================
+     14. GẮN SỰ KIỆN
+  ========================================================= */
+  startBtn.addEventListener('click', startGame);
+  restartBtn.addEventListener('click', startGame);
+
+  hiddenInput.addEventListener('input', onTypingInput);
+
+  // Bấm vào bất kỳ đâu trên trang trong lúc chơi sẽ đưa focus quay lại
+  // ô input ẩn, để bàn phím luôn được ô này lắng nghe.
+  document.addEventListener('click', function(){
+    if(game && game.running) hiddenInput.focus();
+  });
+
+  // Cho phép gõ ngay cả khi vô tình mất focus, bằng cách bắt sự kiện keydown
+  // ở tầng document rồi trả focus về input trước khi ký tự được xử lý.
+  document.addEventListener('keydown', function(e){
+    if(game && game.running && document.activeElement !== hiddenInput){
+      hiddenInput.focus();
+    }
+  });
+
+  window.addEventListener('resize', function(){
+    // Không cần làm gì thêm: toạ độ tâm luôn được tính lại theo
+    // window.innerWidth/innerHeight ngay trong vòng lặp frame().
+  });
+
+  buildStarfield();
+})();
+</script>
+</body>
+</html>
