@@ -338,7 +338,7 @@
 
   <div id="typed-wrap">
     <div id="typed-indicator"><span id="typed-text"></span><span class="cursor"></span></div>
-    <div id="typed-hint">Gõ để khoá mục tiêu &amp; tiêu diệt robot trước khi chúng chạm lõi</div>
+    <div id="typed-hint">Gõ để khoá mục tiêu. Gõ sai (chữ đỏ) thì bấm Backspace để xoá rồi gõ lại</div>
   </div>
 
   <input id="hidden-input" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" />
@@ -461,7 +461,7 @@
       activeTargetId:null,  // id robot đang bị khoá để gõ
       startTime:0,
       correctChars:0,
-      errorChars:0,
+      totalKeystrokes:0,
       wordsDestroyed:0
     };
   }
@@ -617,87 +617,103 @@
     game.enemies.forEach(e => e.el.classList.remove('locked'));
   }
 
-  function renderTypedBuffer(value, target){
+  // Độ dài phần đầu giống nhau giữa 2 chuỗi (longest common prefix).
+  // Dùng để biết "đã gõ đúng được bao nhiêu ký tự" mà không cần chuỗi
+  // gõ phải khớp tuyệt đối với từ đích ở mọi thời điểm.
+  function commonPrefixLength(a, b){
+    const max = Math.min(a.length, b.length);
+    let i = 0;
+    while(i < max && a[i] === b[i]) i++;
+    return i;
+  }
+
+  function renderTypedBuffer(value, target, matchLen){
     if(target){
-      const matchedPart = target.slice(0, value.length);
-      const pendingPart = target.slice(value.length);
+      const goodPart = value.slice(0, matchLen);
+      const badPart = value.slice(matchLen);
       typedTextEl.innerHTML =
-        '<span style="color:var(--cyan)">'+escapeHtml(matchedPart)+'</span>' +
-        '<span style="color:var(--text-muted)">'+escapeHtml(pendingPart)+'</span>';
+        '<span style="color:var(--cyan)">'+escapeHtml(goodPart)+'</span>' +
+        (badPart ? '<span style="color:var(--magenta)">'+escapeHtml(badPart)+'</span>' : '');
+      typedIndicator.classList.toggle('error', badPart.length > 0);
     } else {
       typedTextEl.textContent = value;
+      typedIndicator.classList.remove('error');
     }
   }
 
-  function updateEnemyWordDisplay(enemy, value){
-    const matched = enemy.word.slice(0, value.length);
-    const pending = enemy.word.slice(value.length);
+  function updateEnemyWordDisplay(enemy, matchLen){
+    const matched = enemy.word.slice(0, matchLen);
+    const pending = enemy.word.slice(matchLen);
     const matchedSpan = enemy.el.querySelector('.matched');
     const pendingSpan = enemy.el.querySelector('.pending');
     matchedSpan.textContent = matched;
     pendingSpan.textContent = pending;
   }
 
-  function flashError(){
-    typedIndicator.classList.add('error');
-    setTimeout(()=> typedIndicator.classList.remove('error'), 150);
+  function lockNearestMatch(value){
+    const candidates = game.enemies.filter(e => e.word.toLowerCase().startsWith(value));
+    if(candidates.length === 0) return null;
+    // Ưu tiên khoá robot đang gần lõi nhất (mối đe doạ lớn nhất)
+    candidates.sort((a,b)=>{
+      const da = Math.hypot(window.innerWidth/2-a.x, window.innerHeight/2-a.y);
+      const db = Math.hypot(window.innerWidth/2-b.x, window.innerHeight/2-b.y);
+      return da-db;
+    });
+    game.activeTargetId = candidates[0].id;
+    clearLockVisual();
+    candidates[0].el.classList.add('locked');
+    return candidates[0];
   }
 
+  // QUAN TRỌNG: hàm này KHÔNG bao giờ tự ý sửa hiddenInput.value.
+  // Các bộ gõ tiếng Việt (Telex/VNI) ghép dấu bằng cách thay thế ký tự
+  // ở tầng hệ điều hành/trình duyệt (ví dụ gõ "o" rồi "x" để ra "õ").
+  // Nếu JS can thiệp xoá ký tự giữa chừng, trạng thái ghép dấu của bộ gõ
+  // bị lệch khỏi nội dung thật của ô input, gây ra hiện tượng "gõ không
+  // vào", đặc biệt với các từ có dấu như "gõ", "xấu". Thay vì xoá, ta chỉ
+  // tô màu phần đúng/sai và để người dùng tự sửa bằng phím Backspace.
   function onTypingInput(){
     if(!game || !game.running) return;
-    let value = hiddenInput.value.normalize('NFC').toLowerCase();
+    const value = hiddenInput.value.normalize('NFC').toLowerCase();
+    game.totalKeystrokes++;
 
     if(value.length === 0){
+      game.activeTargetId = null;
+      clearLockVisual();
       renderTypedBuffer('', null);
       return;
     }
 
-    // Trường hợp 1: chưa khoá mục tiêu -> tìm robot phù hợp với chuỗi vừa gõ
-    if(game.activeTargetId === null){
-      const candidates = game.enemies.filter(e => e.word.toLowerCase().startsWith(value));
-      if(candidates.length === 0){
-        // Gõ sai ký tự đầu tiên -> huỷ ký tự vừa gõ, không tính lỗi nặng
-        hiddenInput.value = value.slice(0, -1);
-        game.errorChars++;
-        flashError();
+    // Đang khoá sẵn một mục tiêu -> ưu tiên so khớp tiếp với mục tiêu đó
+    if(game.activeTargetId !== null){
+      const target = findEnemyById(game.activeTargetId);
+      if(target){
+        const targetWord = target.word.toLowerCase();
+        if(value === targetWord){
+          destroyEnemy(target);
+          hiddenInput.value = '';
+          renderTypedBuffer('', null);
+          return;
+        }
+        const matchLen = commonPrefixLength(value, targetWord);
+        updateEnemyWordDisplay(target, matchLen);
+        renderTypedBuffer(value, targetWord, matchLen);
         return;
       }
-      // Ưu tiên khoá robot đang gần lõi nhất (mối đe doạ lớn nhất)
-      candidates.sort((a,b)=>{
-        const da = Math.hypot(window.innerWidth/2-a.x, window.innerHeight/2-a.y);
-        const db = Math.hypot(window.innerWidth/2-b.x, window.innerHeight/2-b.y);
-        return da-db;
-      });
-      game.activeTargetId = candidates[0].id;
-      clearLockVisual();
-      candidates[0].el.classList.add('locked');
-    }
-
-    const target = findEnemyById(game.activeTargetId);
-    if(!target){
-      // Robot mục tiêu đã biến mất (bị né/huỷ) trong lúc gõ -> reset trạng thái
+      // Robot mục tiêu đã biến mất (bị robot khác che, hoặc đã bị xử lý) -> bỏ khoá và thử khoá lại bên dưới
       game.activeTargetId = null;
-      hiddenInput.value = '';
-      renderTypedBuffer('', null);
-      return;
     }
 
-    const targetWord = target.word.toLowerCase();
-    if(!targetWord.startsWith(value)){
-      // Gõ sai giữa chừng -> huỷ ký tự sai, giữ nguyên phần đã đúng
-      hiddenInput.value = value.slice(0, -1);
-      game.errorChars++;
-      flashError();
-      return;
-    }
-
-    updateEnemyWordDisplay(target, value);
-    renderTypedBuffer(value, targetWord);
-
-    if(value.length === targetWord.length){
-      destroyEnemy(target);
-      hiddenInput.value = '';
-      renderTypedBuffer('', null);
+    // Chưa khoá mục tiêu (hoặc vừa mất mục tiêu) -> tìm robot khớp với chuỗi vừa gõ
+    const locked = lockNearestMatch(value);
+    if(locked){
+      const matchLen = commonPrefixLength(value, locked.word.toLowerCase());
+      updateEnemyWordDisplay(locked, matchLen);
+      renderTypedBuffer(value, locked.word.toLowerCase(), matchLen);
+    } else {
+      // Chưa robot nào khớp — có thể do gõ nhầm, hoặc bộ gõ đang ghép dấu dở dang.
+      // Không xoá gì cả, chỉ hiển thị để người chơi tự thấy và tự sửa.
+      renderTypedBuffer(value, null);
     }
   }
 
@@ -792,9 +808,8 @@
   }
 
   function computeAccuracy(){
-    const total = game.correctChars + game.errorChars;
-    if(total === 0) return 100;
-    return Math.round((game.correctChars/total) * 100);
+    if(game.totalKeystrokes === 0) return 100;
+    return Math.min(100, Math.round((game.correctChars / game.totalKeystrokes) * 100));
   }
 
   /* =========================================================
